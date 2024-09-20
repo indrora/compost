@@ -1,0 +1,16 @@
+nick = "compost"
+username = "compostuser"
+realname = "Compost User"
+[[server]]
+name = "LiberaChat"
+host = "irc.libera.chat"
+port = 6697
+tls = true
+join-channels = ["#compost-irc"]
+[[server]]
+name = "local-ircd"
+host = "localhost"
+port= 6667
+tls = false
+join-channels = ["#compost"]
+
