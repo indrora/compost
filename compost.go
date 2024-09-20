@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -124,22 +123,25 @@ func main() {
 	inputchan := make(chan string)
 	go iotask(os.Stdin, inputchan)
 
-	clientlog := slog.With("component", "clientloop")
+	//	clientlog := slog.With("component", "clientloop")
 
 	for {
-		select {
-		case msg := <-EventChan:
-			evmutex.Lock()
-			clientlog.Debug("Took mutex")
-			fmt.Printf("<%s> %s\n", msg.Source.Name, msg.Params[1])
-			evmutex.Unlock()
-			clientlog.Debug("released mutex")
 
+		select {
 		case input := <-inputchan:
 			//	client.Cmd.Privmsg(event.Source.Name, input)
 			fmt.Printf("INPUT=%s\n", input)
 		default:
-			//			clientlog.Debug("waiting for input...")
+
+			//			clientlog.Debug("Took mutex")
+			for msg := range EventChan {
+				evmutex.Lock()
+				fmt.Printf("<%s> %s\n", msg.Source.Name, msg.Params[1])
+				evmutex.Unlock()
+			}
+			evmutex.Unlock()
+			//			clientlog.Debug("released mutex")
+
 		}
 
 	}
@@ -147,47 +149,34 @@ func main() {
 
 func iotask(r io.Reader, c chan string) {
 
-	iobuffBytes := make([]byte, 1024)
-	iobuff := bytes.NewBuffer(iobuffBytes)
-	iobuffdup := io.TeeReader(r, iobuff)
+	scanner := bufio.NewReader(r)
 
-	rReader := bufio.NewReader(iobuff)
-	rScanner := bufio.NewScanner(iobuffdup)
-	// clear the buffer of anything.
-
-	logger := slog.With("component", "iotask")
 	for {
-		//logger.Debug("peeking")
-		//		logger.Debug("scanner.Buffered()", "buffered", scanner.Buffered())
-		if rReader.Buffered() < 1 {
-			//			logger.Debug("no buffered data")
+		b, e := scanner.Peek(1)
+		if errors.Is(e, io.EOF) {
 			continue
-		} else {
-			logger.Debug("scanner.Buffered()", "buffered", rReader.Buffered())
-			b, err := rReader.Peek(1)
-			if err != nil {
-				panic(err)
-			}
-			if b[0] == '\n' || b[0] == '\r' {
-				// skip the newline
-				rReader.ReadByte()
-				logger.Debug("skipping newline")
-				continue
-			}
-
-			logger.Debug("peeked", "b", b)
-			// read the line
-			logger.Debug("taking mutex lock")
+		} else if b[0] == '\n' || b[0] == '\r' {
+			_, _ = scanner.ReadByte()
+			slog.Debug("reading...")
 			evmutex.Lock()
-			logger.Debug("got mutex lock")
 
-			if rScanner.Scan() {
-				line := rScanner.Text()
-				logger.Debug("scanned line", "line", line)
-				c <- line
+			fmt.Print("? ")
+
+			s, e := scanner.ReadString('\n')
+			if e == nil {
+				go func() {
+					slog.Debug("pump to channel", "line", s)
+					c <- s
+				}()
+				slog.Debug("...")
+			} else {
+				panic(e)
 			}
-
 			evmutex.Unlock()
+			slog.Debug("Unlocked.")
+		} else {
+			_, _ = scanner.ReadByte()
 		}
 	}
+
 }
