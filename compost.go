@@ -154,12 +154,20 @@ func iotask(r io.Reader, c chan string) {
 	for {
 		b, e := scanner.Peek(1)
 		if errors.Is(e, io.EOF) {
+			fmt.Println("got EOF")
 			continue
 		} else if b[0] == '\n' || b[0] == '\r' {
-			_, _ = scanner.ReadByte()
+			for k, ex := scanner.Peek(1); k[0] < 20; k, ex = scanner.Peek(1) {
+				if ex != nil {
+					panic(ex)
+				}
+				fmt.Printf("Skipping '%d'\n", b[0])
+				bb, _ := scanner.ReadByte()
+				fmt.Printf("Skipped '%d'\n", bb)
+			}
+			fmt.Println("HELLO")
 			slog.Debug("reading...")
 			evmutex.Lock()
-
 			fmt.Print("? ")
 
 			s, e := scanner.ReadString('\n')
